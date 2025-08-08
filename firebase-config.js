@@ -1,0 +1,1 @@
+// firebase-config.js com as credenciais Firebase
