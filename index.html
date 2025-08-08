@@ -1,1 +1,868 @@
-<!-- index.html do sistema -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sistema de Fiscalização de Rodovias</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <!-- Leaflet Routing Machine CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS (para exportar Excel) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <!-- jsPDF (para exportar PDF) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body {
+            padding-top: 20px;
+            background-color: #f8f9fa;
+        }
+        .nav-tabs {
+            margin-bottom: 20px;
+        }
+        #map {
+            height: 500px;
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .table-responsive {
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+        .card {
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: bold;
+        }
+        .required-field::after {
+            content: " *";
+            color: red;
+        }
+        .contractor-badge {
+            font-size: 0.8rem;
+            background-color: #6c757d;
+            color: white;
+        }
+        .map-loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            background-color: #f8f9fa;
+        }
+        .geo-input-group {
+            margin-bottom: 10px;
+        }
+        .geo-coordinates {
+            font-family: monospace;
+            background-color: #f8f9fa;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .geo-badge {
+            font-size: 0.8rem;
+        }
+        .inspector-photo {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 10px;
+        }
+        .multiple-contractors {
+            color: #d63384;
+            font-weight: bold;
+        }
+        /* Estilos para a aba de planejamento */
+        .planning-card {
+            margin-bottom: 20px;
+        }
+        .planning-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .planning-item {
+            padding: 10px;
+            margin-bottom: 5px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .priority-high {
+            border-left: 4px solid #dc3545;
+        }
+        .priority-medium {
+            border-left: 4px solid #ffc107;
+        }
+        .priority-low {
+            border-left: 4px solid #28a745;
+        }
+        .days-left {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+        .days-overdue {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        /* Estilos para o rastreamento */
+        #trackingFloatingBtn {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+
+        #trackingFloatingBtn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+
+        .tracking-active {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(13, 110, 253, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0); }
+        }
+
+        .live-marker {
+            background-color: #0d6efd;
+            border-radius: 50%;
+            width: 15px;
+            height: 15px;
+            border: 3px solid white;
+            box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.5);
+            animation: pulse-marker 1.5s infinite;
+        }
+
+        @keyframes pulse-marker {
+            0% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(13, 110, 253, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0); }
+        }
+
+        .path-line {
+            stroke: #0d6efd;
+            stroke-width: 3;
+            stroke-dasharray: 5, 5;
+            fill: none;
+        }
+
+        /* Estilos responsivos */
+        @media (max-width: 992px) {
+            .container {
+                padding: 0 15px;
+            }
+            .card {
+                margin-bottom: 15px;
+            }
+            .planning-card {
+                margin-bottom: 15px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-tabs {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+                padding-bottom: 10px;
+            }
+            .nav-item {
+                flex: 0 0 auto;
+            }
+            .tab-content > .tab-pane {
+                padding: 10px;
+            }
+            #map {
+                height: 300px;
+            }
+            .btn {
+                margin-bottom: 5px;
+            }
+            .inspector-photo {
+                width: 40px;
+                height: 40px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .row {
+                flex-direction: column;
+            }
+            .col-md-6, .col-md-4, .col-md-3 {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+            .btn {
+                width: 100%;
+            }
+            .geo-input-group {
+                margin-bottom: 15px;
+            }
+            .planning-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .days-left {
+                margin-top: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Sistema de Fiscalização de Rodovias</h1>
+        
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab">Registrar Vistoria</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="roads-tab" data-bs-toggle="tab" data-bs-target="#roads" type="button" role="tab">Cadastrar Rodovias</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="contractors-tab" data-bs-toggle="tab" data-bs-target="#contractors" type="button" role="tab">Empreiteiras</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="inspectors-tab" data-bs-toggle="tab" data-bs-target="#inspectors" type="button" role="tab">Fiscais</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab">Histórico</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="map-tab" data-bs-toggle="tab" data-bs-target="#map-view" type="button" role="tab">Mapa</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="planning-tab" data-bs-toggle="tab" data-bs-target="#planning" type="button" role="tab">Planejamento</button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="myTabContent">
+            <!-- Registrar Vistoria -->
+            <div class="tab-pane fade show active" id="register" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-clipboard-check me-2"></i>Registrar Nova Vistoria
+                    </div>
+                    <div class="card-body">
+                        <form id="inspectionForm">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="inspectorName" class="form-label required-field">Fiscal</label>
+                                    <select class="form-select" id="inspectorName" required>
+                                        <option value="" selected disabled>Selecione o fiscal</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="inspectionDate" class="form-label required-field">Data da Vistoria</label>
+                                    <input type="date" class="form-control" id="inspectionDate" required>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="roadSelect" class="form-label required-field">Rodovia</label>
+                                    <select class="form-select" id="roadSelect" required>
+                                        <option value="" selected disabled>Selecione a rodovia</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="contractorInfo" class="form-label">Empreiteira Responsável</label>
+                                    <div id="contractorInfo" class="form-control bg-light">
+                                        <span class="text-muted">Selecione a rodovia e o trecho</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="startKm" class="form-label required-field">KM Inicial</label>
+                                    <input type="number" step="0.001" class="form-control" id="startKm" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="endKm" class="form-label required-field">KM Final</label>
+                                    <input type="number" step="0.001" class="form-control" id="endKm" required>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="observations" class="form-label">Observações</label>
+                                <textarea class="form-control" id="observations" rows="3"></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Salvar Vistoria
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Cadastrar Rodovias -->
+            <div class="tab-pane fade" id="roads" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-road me-2"></i>Cadastrar Nova Rodovia
+                    </div>
+                    <div class="card-body">
+                        <form id="roadForm">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label for="roadType" class="form-label required-field">Tipo</label>
+                                    <select class="form-select" id="roadType" required>
+                                        <option value="SP">SP</option>
+                                        <option value="SPA">SPA</option>
+                                        <option value="SPD">SPD</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="roadNumber" class="form-label required-field">Número</label>
+                                    <input type="text" class="form-control" id="roadNumber" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="roadContractor" class="form-label">Empreiteira Padrão</label>
+                                    <select class="form-select" id="roadContractor">
+                                        <option value="">Nenhuma</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="roadStartKm" class="form-label required-field">KM Inicial</label>
+                                    <input type="number" step="0.001" class="form-control" id="roadStartKm" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="roadEndKm" class="form-label required-field">KM Final</label>
+                                    <input type="number" step="0.001" class="form-control" id="roadEndKm" required>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="roadDescription" class="form-label">Descrição</label>
+                                <textarea class="form-control" id="roadDescription" rows="2"></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Cadastrar Rodovia
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-list me-2"></i>Trechos de Rodovias Cadastrados
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover" id="roadSectionsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Rodovia</th>
+                                        <th>Trecho (KM)</th>
+                                        <th>Extensão</th>
+                                        <th>Empreiteira(s)</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dados serão preenchidos via JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Cadastrar Empreiteiras -->
+            <div class="tab-pane fade" id="contractors" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-building me-2"></i>Cadastrar Nova Empreiteira
+                    </div>
+                    <div class="card-body">
+                        <form id="contractorForm">
+                            <div class="mb-3">
+                                <label for="contractorName" class="form-label required-field">Nome da Empreiteira</label>
+                                <input type="text" class="form-control" id="contractorName" required>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Cadastrar Empreiteira
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-list me-2"></i>Empreiteiras Cadastradas
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover" id="contractorsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Trechos</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dados serão preenchidos via JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Cadastrar Fiscais -->
+            <div class="tab-pane fade" id="inspectors" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-user-tie me-2"></i>Cadastrar Novo Fiscal
+                    </div>
+                    <div class="card-body">
+                        <form id="inspectorForm">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="inspectorFullName" class="form-label required-field">Nome Completo</label>
+                                    <input type="text" class="form-control" id="inspectorFullName" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="inspectorRegistration" class="form-label required-field">Matrícula</label>
+                                    <input type="text" class="form-control" id="inspectorRegistration" required>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="inspectorPhoto" class="form-label">Foto (opcional)</label>
+                                <input type="file" class="form-control" id="inspectorPhoto" accept="image/*">
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Cadastrar Fiscal
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-list me-2"></i>Fiscais Cadastrados
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover" id="inspectorsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Foto</th>
+                                        <th>Nome</th>
+                                        <th>Matrícula</th>
+                                        <th>Vistorias</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dados serão preenchidos via JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Histórico -->
+            <div class="tab-pane fade" id="history" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-history me-2"></i>Histórico de Vistorias
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="filterInspector" class="form-label">Filtrar por Fiscal</label>
+                                <select class="form-select" id="filterInspector">
+                                    <option value="">Todos</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="filterRoad" class="form-label">Filtrar por Rodovia</label>
+                                <select class="form-select" id="filterRoad">
+                                    <option value="">Todas</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="filterDate" class="form-label">Filtrar por Data</label>
+                                <input type="date" class="form-control" id="filterDate">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <button id="exportExcel" class="btn btn-success me-2">
+                                <i class="fas fa-file-excel me-2"></i>Exportar para Excel
+                            </button>
+                            <button id="exportPDF" class="btn btn-danger">
+                                <i class="fas fa-file-pdf me-2"></i>Exportar para PDF
+                            </button>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover" id="historyTable">
+                                <thead>
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Fiscal</th>
+                                        <th>Rodovia</th>
+                                        <th>Trecho (KM)</th>
+                                        <th>Empreiteira</th>
+                                        <th>Georreferenciamento</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Dados serão preenchidos via JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Mapa -->
+            <div class="tab-pane fade" id="map-view" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-map-marked-alt me-2"></i>Visualização no Mapa
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label for="mapInspector" class="form-label">Fiscal</label>
+                                <select class="form-select" id="mapInspector">
+                                    <option value="">Todos</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="mapRoad" class="form-label">Rodovia</label>
+                                <select class="form-select" id="mapRoad">
+                                    <option value="">Todas</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="mapContractor" class="form-label">Empreiteira</label>
+                                <select class="form-select" id="mapContractor">
+                                    <option value="">Todas</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="mapDate" class="form-label">Data</label>
+                                <input type="date" class="form-control" id="mapDate">
+                            </div>
+                        </div>
+                        
+                        <div id="map">
+                            <div class="map-loading">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Carregando mapa...</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button id="clearMap" class="btn btn-secondary me-2">
+                                <i class="fas fa-broom me-2"></i>Limpar Mapa
+                            </button>
+                            <button id="showAll" class="btn btn-primary">
+                                <i class="fas fa-layer-group me-2"></i>Mostrar Todas
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Planejamento -->
+            <div class="tab-pane fade" id="planning" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card planning-card">
+                            <div class="card-header">
+                                <i class="fas fa-calendar-alt me-2"></i>Gerar Planejamento Diário
+                            </div>
+                            <div class="card-body">
+                                <form id="planningForm">
+                                    <div class="mb-3">
+                                        <label for="planningDate" class="form-label">Data do Planejamento</label>
+                                        <input type="date" class="form-control" id="planningDate" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="planningInspector" class="form-label">Fiscal</label>
+                                        <select class="form-select" id="planningInspector" required>
+                                            <option value="" selected disabled>Selecione o fiscal</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="planningContractor" class="form-label">Empreiteira (opcional)</label>
+                                        <select class="form-select" id="planningContractor">
+                                            <option value="">Todas</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-calendar-plus me-2"></i>Gerar Planejamento
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card planning-card">
+                            <div class="card-header">
+                                <i class="fas fa-exclamation-circle me-2"></i>Rodovias com Vistorias Atrasadas
+                            </div>
+                            <div class="card-body">
+                                <ul class="planning-list" id="overdueInspections">
+                                    <!-- Será preenchido via JavaScript -->
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-list-check me-2"></i>Planejamento Gerado
+                    </div>
+                    <div class="card-body">
+                        <div id="generatedPlanning">
+                            <p class="text-muted">Nenhum planejamento gerado ainda. Preencha o formulário ao lado para gerar sugestões.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para detalhes da vistoria -->
+    <div class="modal fade" id="inspectionModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detalhes da Vistoria</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="inspectionDetails">
+                    <!-- Conteúdo será preenchido via JavaScript -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para adicionar georreferenciamento -->
+    <div class="modal fade" id="geoModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Adicionar Georreferenciamento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="geoForm">
+                        <input type="hidden" id="geoInspectionId">
+                        <div class="geo-input-group">
+                            <label for="startLat" class="form-label">Latitude Inicial</label>
+                            <input type="text" class="form-control" id="startLat" placeholder="Ex: -23.5505">
+                        </div>
+                        <div class="geo-input-group">
+                            <label for="startLng" class="form-label">Longitude Inicial</label>
+                            <input type="text" class="form-control" id="startLng" placeholder="Ex: -46.6333">
+                        </div>
+                        <div class="geo-input-group">
+                            <label for="endLat" class="form-label">Latitude Final</label>
+                            <input type="text" class="form-control" id="endLat" placeholder="Ex: -23.5505">
+                        </div>
+                        <div class="geo-input-group">
+                            <label for="endLng" class="form-label">Longitude Final</label>
+                            <input type="text" class="form-control" id="endLng" placeholder="Ex: -46.6333">
+                        </div>
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-secondary me-2" id="getCurrentLocationStart">
+                                <i class="fas fa-location-arrow me-2"></i>Usar Minha Localização (Início)
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="getCurrentLocationEnd">
+                                <i class="fas fa-location-arrow me-2"></i>Usar Minha Localização (Fim)
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="saveGeo">Salvar Coordenadas</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para gerenciar trechos de empreiteiras -->
+    <div class="modal fade" id="sectionsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Gerenciar Trechos da Rodovia</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <h6>Trechos Cadastrados</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm" id="roadSectionsModalTable">
+                                <thead>
+                                    <tr>
+                                        <th>KM Inicial</th>
+                                        <th>KM Final</th>
+                                        <th>Empreiteira</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Preenchido via JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h6>Adicionar Novo Trecho</h6>
+                    <form id="sectionForm">
+                        <input type="hidden" id="modalRoadId">
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label for="sectionStartKm" class="form-label">KM Inicial</label>
+                                <input type="number" step="0.001" class="form-control" id="sectionStartKm" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="sectionEndKm" class="form-label">KM Final</label>
+                                <input type="number" step="0.001" class="form-control" id="sectionEndKm" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="sectionContractor" class="form-label">Empreiteira</label>
+                                <select class="form-select" id="sectionContractor" required>
+                                    <option value="" selected disabled>Selecione</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-plus"></i> Adicionar
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmação -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmação</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="confirmMessage">
+                    <!-- Mensagem será preenchida via JavaScript -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" id="confirmAction">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para compartilhar localização -->
+    <div class="modal fade" id="trackingModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Compartilhamento de Localização</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="trackingInspector" class="form-label">Selecione seu nome</label>
+                        <select class="form-select" id="trackingInspector" required>
+                            <option value="" selected disabled>Selecione o fiscal</option>
+                        </select>
+                    </div>
+                    
+                    <div id="trackingStatus">
+                        <p>Status: <span id="trackingStatusText" class="fw-bold">Não compartilhando</span></p>
+                        <p>Fiscal: <span id="trackingInspectorName">-</span></p>
+                        <p>Tempo restante: <span id="trackingTimeLeft">-</span></p>
+                        <div class="progress mb-3">
+                            <div id="trackingProgress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <button id="startTrackingBtn" class="btn btn-primary w-100">
+                        <i class="fas fa-location-arrow me-2"></i>Iniciar Compartilhamento (8 horas)
+                    </button>
+                    <button id="stopTrackingBtn" class="btn btn-danger w-100 mt-2" disabled>
+                        <i class="fas fa-stop-circle me-2"></i>Parar Compartilhamento
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botão flutuante para acessar o rastreamento -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+        <button id="trackingFloatingBtn" class="btn btn-primary rounded-circle p-3" 
+                data-bs-toggle="modal" data-bs-target="#trackingModal"
+                title="Rastreamento em tempo real">
+            <i class="fas fa-satellite-dish"></i>
+        </button>
+    </div>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet Routing Machine -->
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <!-- Lodash (para utilitários) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+    
+    
+
+    <!-- Firebase config and app module -->
+    <script type="module" src="./firebase-config.js"></script>
+    <script type="module" src="./app.js"></script>
+</body>
+</html>
